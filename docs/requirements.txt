@@ -7,7 +7,7 @@ babel==2.18.0
     # via sphinx
 bcrypt==5.0.0
     # via paramiko
-certifi==2026.7.22
+certifi==2026.10.19
     # via requests
 cffi==2.1.0 ; platform_python_implementation != 'PyPy'
     # via
