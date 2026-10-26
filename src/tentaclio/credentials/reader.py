@@ -114,6 +114,9 @@ def _load_creds_from_yaml(yaml_reader: protocols.Reader) -> dict:
 def _load_from_file(
     injector: injection.CredentialsInjector, path: str
 ) -> injection.CredentialsInjector:
+    # Expand a leading ~ so a path like ~/secrets.yaml resolves to the user's
+    # home directory rather than a literal "~" entry in the working directory.
+    path = os.path.expanduser(path)
     try:
         with open(path, "r") as f:
             return add_credentials_from_reader(injector, f)

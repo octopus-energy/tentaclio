@@ -182,3 +182,15 @@ def test_credentials_bad_env_variable(creds_yaml_bad_env_variables):
     data = io.StringIO(creds_yaml_bad_env_variables)
     with pytest.raises(EnvironmentError):
         reader.add_credentials_from_reader(injection.CredentialsInjector(), data)
+
+
+def test_load_from_file_expands_user_path(tmp_path, monkeypatch, creds_yaml):
+    """A leading ~ in the secrets path resolves to the user's home."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    (tmp_path / "secrets.yaml").write_text(creds_yaml)
+
+    injector = reader._load_from_file(injection.CredentialsInjector(), "~/secrets.yaml")
+
+    result = injector.inject(urls.URL("ftp://local.com/file.txt"))
+    assert result == urls.URL("ftp://user:password@local.com/file.txt")
