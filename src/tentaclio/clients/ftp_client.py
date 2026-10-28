@@ -14,7 +14,6 @@ from tentaclio import fs, protocols, urls
 
 from . import base_client, decorators, exceptions
 
-
 logger = logging.getLogger(__name__)
 
 __all__ = ["FTPClient", "SFTPClient"]
@@ -69,9 +68,28 @@ class FTPClient(base_client.BaseClient["FTPClient"]):
                 in the constructor as part of the url.
         """
         remote_path = file_path or self.url.path
+        self.makedirs(os.path.dirname(remote_path))
         # storbinary only works with io.BytesIO
         buff = io.BytesIO(bytearray(reader.read()))
         self.conn.storbinary(f"STOR {remote_path}", buff)
+
+    @decorators.check_conn
+    def makedirs(self, remotedir: str) -> None:
+        """Create missing FTP directories without changing the working directory."""
+        if not remotedir or remotedir == "/":
+            return
+        parent = os.path.dirname(remotedir.rstrip("/"))
+        if parent and parent != remotedir:
+            self.makedirs(parent)
+        try:
+            self.conn.mkd(remotedir)
+        except ftplib.error_perm:
+            # Only ignore an existing directory, not a permission failure.
+            original = self.conn.pwd()
+            try:
+                self.conn.cwd(remotedir)
+            finally:
+                self.conn.cwd(original)
 
     # Helpers:
 
@@ -238,6 +256,7 @@ class SFTPClient(base_client.BaseClient["SFTPClient"]):
             raise exceptions.FTPError("Missing remote file path")
 
         logger.info(f"sftp writing to {remote_path}")
+        self.makedirs(os.path.dirname(remote_path))
         # this gives permission error
         # self.conn.putfo(remote_path, file_obj.read())
         # but open works
@@ -285,6 +304,8 @@ class SFTPClient(base_client.BaseClient["SFTPClient"]):
 
     def makedirs(self, remotedir: str, mode: int = 777) -> None:
         """Create all directories in remotedir as needed, setting their mode to mode if created."""
+        if not remotedir or remotedir == "/":
+            return
         if self.isdir(remotedir):
             return
         elif self.isfile(remotedir):

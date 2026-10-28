@@ -232,3 +232,42 @@ class TestSFTPClient:
         print("entries", entries)
         assert entries[0].url == URL("sftp://localhost:9999/mydir/other_folder")
         assert entries[0].is_dir
+
+
+def test_ftp_write_creates_parent_directories(mocked_ftp_conn, mocker):
+    client = ftp_client.FTPClient("ftp://user:pass@localhost/new/deep/data.txt")
+    with client:
+        mkdir = mocker.patch.object(client.conn, "mkd")
+        store = mocker.patch.object(client.conn, "storbinary")
+        client.put(io.BytesIO(b"data"))
+        assert [call.args[0] for call in mkdir.call_args_list] == ["/new", "/new/deep"]
+        store.assert_called_once()
+
+
+def test_sftp_write_creates_parent_directories(mocked_sftp_conn, mocker):
+    client = ftp_client.SFTPClient("sftp://user:pass@localhost/new/deep/data.txt")
+    with client:
+        mocker.patch.object(client.conn, "stat", side_effect=IOError("not found"))
+        mkdir = mocker.patch.object(client.conn, "mkdir")
+        client.put(io.BytesIO(b"data"))
+        assert [call.args[0] for call in mkdir.call_args_list] == ["/new", "/new/deep"]
+
+
+def test_ftp_makedirs_existing_directory(mocked_ftp_conn, mocker):
+    client = ftp_client.FTPClient("ftp://user:pass@localhost/new/data.txt")
+    with client:
+        mocker.patch.object(client.conn, "mkd", side_effect=ftplib.error_perm("exists"))
+        cwd = mocker.patch.object(client.conn, "cwd")
+        mocker.patch.object(client.conn, "pwd", return_value="/")
+        client.makedirs("/new")
+        assert [call.args[0] for call in cwd.call_args_list] == ["/new", "/"]
+
+
+def test_ftp_makedirs_rejects_permission_error(mocked_ftp_conn, mocker):
+    client = ftp_client.FTPClient("ftp://user:pass@localhost/new/data.txt")
+    with client:
+        mocker.patch.object(client.conn, "mkd", side_effect=ftplib.error_perm("permission denied"))
+        mocker.patch.object(client.conn, "cwd", side_effect=ftplib.error_perm("permission denied"))
+        mocker.patch.object(client.conn, "pwd", return_value="/")
+        with pytest.raises(ftplib.error_perm):
+            client.makedirs("/new")

@@ -7,7 +7,6 @@ from tentaclio import fs, protocols, urls
 
 from . import base_client
 
-
 __all__ = ["LocalFSClient"]
 
 
@@ -40,8 +39,14 @@ class LocalFSClient(base_client.BaseClient["LocalFSClient"]):
 
     def put(self, reader: protocols.ByteReader, **kwargs) -> None:
         """Write the contents of the reader to the file."""
+        self.makedirs(os.path.dirname(self.path))
         with open(self.path, "wb") as f:
             f.write(bytes(reader.read()))
+
+    def makedirs(self, directory: str, mode: int = 0o777) -> None:
+        """Create parent directories, preserving existing directories."""
+        if directory:
+            os.makedirs(directory, mode=mode, exist_ok=True)
 
     # scandir related methods
 
